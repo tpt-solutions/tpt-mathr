@@ -1,0 +1,497 @@
+1. The OOM (Out of Memory) Reality in Rust (Section 33)
+You listed AllocationFailure as an error type. Be careful here: Rust's standard alloc (e.g., Vec, Box) will abort the process on OOM by default; it does not return an error.
+The Fix: If you truly want to handle AllocationFailure gracefully (especially in the tpt-mathr-search distributed workers where one OOM shouldn't crash the whole node), you must use Vec::try_reserve(), RawVec, or the allocator-api2 crate. You will need to write your limb allocations using fallible allocation paths.
+2. Limb Sizing for WASM and 32-bit (Section 6)
+You specified type Limb = u64;. This is perfect for 64-bit targets (x86_64, aarch64). However, for wasm32-unknown-unknown or 32-bit ARM, 64-bit multiplication requires software emulation and is significantly slower.
+The Fix: Make the limb size conditional or generic.
+rust
+
+1234
+Alternatively, use a generic Limb trait, though conditional compilation is usually preferred for zero-cost math.
+3. E-Graphs and Allocation Churn (Section 12 & 25)
+You correctly identified that tpt-mathr-symbolic will use E-graphs. E-graphs are notoriously allocation-heavy (every rewrite creates new nodes). Standard malloc/free will bottleneck the symbolic engine.
+The Fix: Your mention of "arena-backed temporary arithmetic" in Section 25 is spot on. For the symbolic layer, strongly consider using an arena allocator like bumpalo or tiered-arena. When a search branch fails or a rewrite cycle completes, you can drop the entire arena in 
+O
+(
+1
+)
+O(1) time, completely bypassing the allocator's overhead.
+4. WASM Threading (Section 43)
+You noted WASM must not assume native threads. This is historically true, but modern WASM does support threads via the atomics proposal and SharedArrayBuffer.
+The Fix: You don't need to support it in Phase 1, but keep in mind that if you want parallel search in the browser later, you can compile with RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals" and use wasm-bindgen-rayon.
+5. FFI Out-Parameters (Section 42)
+Your C API design:
+c
+
+1
+This is the exact correct pattern for C FFI. Returning structs by value across the C ABI is a nightmare due to differing compiler conventions (sysv64 vs windows). Opaque pointers with out-parameters and explicit status codes is the gold standard.
+
+
+
+1. OOM handling — definitely change this
+
+This is an important correction to Section 33.
+
+AllocationFailure as a normal error is misleading if the implementation uses ordinary Vec::reserve, Box, etc., because allocation failure generally results in an abort rather than a recoverable Result.
+
+For tpt-mathr, I think fallible allocation should be an explicit design requirement, particularly because you're contemplating enormous integers and distributed search.
+
+I'd change the architecture to:
+
+normal arithmetic
+       │
+       ├── try_reserve / fallible allocation
+       │
+       ▼
+Result<T, ArithmeticError>
+       │
+       ├── AllocationFailure
+       ├── ResourceLimit
+       ├── InvalidOperation
+       └── ...
+
+But I would not immediately introduce allocator-api2 everywhere.
+
+Start with:
+
+Vec::try_reserve()
+Vec::try_reserve_exact()
+
+and encapsulate allocations behind your own internal allocation helpers.
+
+For example:
+
+fn reserve_limbs(
+    limbs: &mut Vec<Limb>,
+    additional: usize,
+) -> Result<(), ArithmeticError> {
+    limbs
+        .try_reserve(additional)
+        .map_err(|_| ArithmeticError::AllocationFailure)
+}
+
+Then the rest of the arithmetic implementation doesn't need to know which allocation mechanism is underneath.
+
+More importantly: add resource limits
+
+For a mathematical search engine, OOM isn't the only problem.
+
+You want:
+
+Memory budget
+CPU budget
+Maximum operand size
+Maximum polynomial degree
+Maximum search depth
+Maximum certificate size
+Maximum execution time
+
+So I'd introduce:
+
+pub struct ResourceLimits {
+    pub max_memory_bytes: Option<usize>,
+    pub max_integer_bits: Option<usize>,
+    pub max_polynomial_degree: Option<usize>,
+    pub max_execution_time: Option<Duration>,
+}
+
+This is particularly important for tpt-mathr-search.
+
+A worker shouldn't have to discover that it has consumed 64 GB of RAM before failing.
+
+2. Limb size — yes, but I'd go one step further
+
+I agree with the concern about:
+
+type Limb = u64;
+
+especially for WASM32 and 32-bit targets.
+
+However, I wouldn't make the entire public API generic over Limb.
+
+That's likely to create a huge amount of generic complexity for very little benefit.
+
+Instead:
+
+#[cfg(target_pointer_width = "64")]
+type Limb = u64;
+
+#[cfg(target_pointer_width = "32")]
+type Limb = u32;
+
+Then design the internal arithmetic around a wider intermediate:
+
+32-bit:
+Limb = u32
+DoubleLimb = u64
+
+64-bit:
+Limb = u64
+DoubleLimb = u128
+
+Conceptually:
+
+trait LimbConfig {
+    type Limb;
+    type DoubleLimb;
+}
+
+could remain an internal abstraction, without making:
+
+BigInt<Limb>
+
+part of the public API.
+
+That gives you:
+
+x86_64       → u64 limbs
+aarch64      → u64 limbs
+wasm32       → u32 limbs
+armv7        → u32 limbs
+wasm64       → u64 limbs
+
+while retaining a single:
+
+BigInt
+
+public type.
+
+I'd make this a hard architectural requirement.
+
+3. E-graph allocation — absolutely
+
+This is one area where I would actually strengthen the specification beyond what I originally wrote.
+
+There are two different allocation problems:
+
+Arithmetic allocation
+BigInt
+BigRat
+Polynomial
+
+needs efficient reusable buffers.
+
+Symbolic allocation
+AST
+EGraph
+EClass
+ENode
+rewrite results
+proof traces
+
+can generate enormous numbers of short-lived objects.
+
+Those should not necessarily use the same allocation strategy.
+
+I'd specify:
+
+tpt-mathr-arith
+    │
+    ├── normal heap allocation
+    ├── reusable buffers
+    └── scratch allocation
+
+tpt-mathr-symbolic
+    │
+    ├── arena allocation
+    ├── interned nodes
+    ├── stable IDs
+    └── bulk branch disposal
+
+For the symbolic engine, an arena such as bumpalo or a specialised arena implementation makes sense.
+
+But there's an important caveat:
+
+Don't put the entire e-graph into a bump arena if the e-graph itself needs long-lived mutation/removal.
+
+I'd use arenas primarily for temporary expression construction, rewrite candidates, proof traces and branch-local state.
+
+The long-lived e-graph should probably use its own indexed storage:
+
+EClassId → EClass
+ENodeId  → ENode
+
+rather than a giant collection of individually allocated objects.
+
+That gives you:
+
+Vec<EClass>
+Vec<ENode>
+
+or equivalent packed storage.
+
+This is potentially a much bigger performance win than merely replacing malloc.
+
+4. WASM threading — yes, but make it Phase 2/3
+
+I agree with your correction.
+
+The original wording:
+
+WASM must not assume native threads
+
+is too absolute.
+
+The better statement is:
+
+The baseline WASM target must function without threads, while a threaded WASM target may optionally use WebAssembly shared memory and atomics where the host environment supports them.
+
+So:
+
+WASM baseline
+    ↓
+single-threaded
+    ↓
+works everywhere
+
+and later:
+
+WASM threaded
+    ↓
+SharedArrayBuffer
+    ↓
+WebAssembly atomics
+    ↓
+wasm-bindgen-rayon
+    ↓
+parallel search
+
+I would specifically not make threaded WASM part of the core arithmetic design.
+
+Instead, make parallelism an execution backend:
+
+tpt-mathr-search
+        │
+        ├── native threads
+        ├── distributed workers
+        ├── GPU
+        └── WASM workers
+
+This is cleaner.
+
+Also, the browser security requirements around SharedArrayBuffer mean the web application needs the appropriate cross-origin isolation configuration. That's an application/deployment concern rather than something tpt-mathr itself should bake into the mathematical core.
+
+5. C FFI — yes, keep the out-parameter architecture
+
+I agree with this completely.
+
+I'd actually make the API specification stricter.
+
+Instead of:
+
+TptBigInt* tpt_bigint_mul(
+    const TptBigInt* lhs,
+    const TptBigInt* rhs
+);
+
+I'd make the canonical ABI:
+
+TptStatus tpt_bigint_mul(
+    const TptBigInt* lhs,
+    const TptBigInt* rhs,
+    TptBigInt** out
+);
+
+That gives you:
+
+return value = status
+out parameter = result
+
+and avoids ambiguity around:
+
+allocation failure;
+invalid arguments;
+overflow/resource limits;
+internal failures.
+
+Then:
+
+TptStatus status;
+
+TptBigInt* result = NULL;
+
+status = tpt_bigint_mul(a, b, &result);
+
+if (status != TPT_OK) {
+    /* handle error */
+}
+
+That's the ABI I would standardise throughout the library.
+
+6. One additional thing I would add: cancellation
+
+Your OOM point leads to another requirement that wasn't in my revised spec strongly enough.
+
+tpt-mathr-search needs cooperative cancellation.
+
+Imagine a distributed search:
+
+Coordinator
+    │
+    ├── Worker A
+    ├── Worker B
+    ├── Worker C
+    └── Worker D
+
+Worker B finds a counterexample.
+
+You don't want:
+
+A continues for 12 hours
+B found answer
+C continues for 12 hours
+D continues for 12 hours
+
+You want:
+
+B
+│
+├── result
+│
+▼
+Coordinator
+│
+├── cancel A
+├── cancel C
+└── cancel D
+
+So the search API should eventually have:
+
+pub struct CancellationToken { ... }
+
+and resource limits should be checked cooperatively.
+
+That also handles:
+
+user cancellation;
+timeouts;
+memory budgets;
+distributed cancellation;
+browser worker termination.
+7. Another important addition: "huge integer" must not automatically mean "parallel"
+
+There's a subtle architectural issue here.
+
+The original spec leaned toward:
+
+huge numbers + concurrency = advantage over GMP.
+
+I wouldn't assume that.
+
+For example:
+
+BigInt multiplication
+
+may have significant serial dependencies even though the overall workload can be parallelised.
+
+The real architecture should distinguish:
+
+Algorithm-level parallelism
+
+from:
+
+Workload-level parallelism
+Workload-level
+
+Very easy:
+
+calculate f(1)
+calculate f(2)
+calculate f(3)
+...
+
+can distribute almost perfectly.
+
+Algorithm-level
+
+Much harder:
+
+multiply two enormous integers
+
+may benefit from parallel FFT/NTT stages, but the scaling characteristics depend heavily on operand size and algorithm.
+
+Therefore benchmarks should measure:
+
+single-thread performance
+2 threads
+4 threads
+8 threads
+...
+
+rather than assuming linear scaling.
+
+8. I would revise the architecture with all of these changes
+
+The resulting core looks like:
+
+                         tpt-mathr
+                             │
+             ┌───────────────┼────────────────┐
+             │               │                │
+        tpt-mathr-       tpt-mathr-      tpt-mathr-
+           arith            poly           symbolic
+             │               │                │
+             │               └───────┬────────┘
+             │                       │
+             └───────────┬───────────┘
+                         │
+                  tpt-mathr-search
+                         │
+             ┌───────────┼────────────┐
+             │           │            │
+           CPU         GPU          WASM
+             │           │            │
+             └───────────┼────────────┘
+                         │
+                 tpt-mathr-verify
+                         │
+          ┌──────────────┼───────────────┐
+          │              │               │
+     tpt-solver      tpt-formal      tpt-telos
+          │              │               │
+          └──────────────┼───────────────┘
+                         │
+                       Lean
+
+With infrastructure underneath:
+
+          arithmetic/search workloads
+                     │
+        ┌────────────┼─────────────┐
+        │            │             │
+    fallible      resource      cancellation
+   allocation      limits         tokens
+        │            │             │
+        └────────────┼─────────────┘
+                     │
+              deterministic core
+The five changes I'd explicitly put into v1.2.0
+Area	Revised requirement
+OOM	Fallible allocations in large-data paths; try_reserve initially
+Memory	Explicit resource limits and budgets
+Limbs	u64 on 64-bit, u32 on 32-bit/WASM32
+Symbolic allocation	Packed/indexed long-lived e-graph + arenas for temporary state
+WASM	Single-thread baseline + optional threaded target
+FFI	Status + opaque handle + out-parameter
+Search	Cooperative cancellation
+Parallelism	Measure actual scaling; don't assume linear scaling
+
+And I'd add one further principle:
+
+The public API should not expose any of these implementation decisions.
+
+So users still see:
+
+BigInt
+BigRat
+BigFloat
+Polynomial
+
+rather than:
+
+BigInt<u64>
+BigInt<Wasm32Limb>
+ArenaBigInt
+ParallelBigInt
+
+That keeps the library pleasant to use while letting the implementation become considerably more sophisticated underneath.
