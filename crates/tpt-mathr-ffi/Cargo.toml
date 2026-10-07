@@ -1,0 +1,21 @@
+[package]
+name = "tpt-mathr-ffi"
+description = "C ABI, Python and WASM bindings for tpt-mathr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+[lib]
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[features]
+default = []
+
+[dependencies]
+tpt-mathr-base = { workspace = true }
+tpt-mathr-arith = { workspace = true }

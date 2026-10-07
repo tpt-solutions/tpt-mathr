@@ -1,0 +1,63 @@
+# cargo-deny configuration for tpt-mathr.
+#
+# Policy (standing decision, todo.md):
+#   * Dependencies must be MIT-compatible: MIT, MIT/Apache-2.0 dual, BSD,
+#     ISC, Zlib, Unlicense/CC0. No Apache-2.0-only deps in shipped crates.
+#     No GPL/LGPL/MPL in shipped crates.
+#   * GMP/MPFR/FLINT/Python bindings may appear only in dev-dependencies or
+#     benchmarks, never as runtime dependencies.
+#
+# Note on Apache-2.0: the allow-list below must contain Apache-2.0 because
+# virtually every MIT/Apache dual-licensed crate licenses its code under
+# either term, and cargo-deny records the *declared* SPDX expressions.
+# Apache-2.0-only dependencies are controlled by process, not by this file:
+# every new dependency requires a review recorded in docs/dependency-audit.md
+# (see CONTRIBUTING.md). Apache-2.0 WITH LLVM-exception is likewise handled
+# by review; it may appear only in dev-only tooling (e.g. libFuzzer-based
+# fuzz targets), never in shipped crates.
+
+[graph]
+# All targets CI builds; keeps license/primitive checks honest per-target.
+all-features = true
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "CC0-1.0",
+    "BSL-1.0",
+    "Unicode-3.0",
+]
+# Copyleft licenses are denied by omission. Confidence for SPDX detection.
+confidence-threshold = 0.93
+
+# Entries for [[licenses.clarify]] are added when a crate's declared
+# license needs manual confirmation; the tree is currently dependency-free.
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+    # Copyleft (shipped-crates policy). If a dev-only need ever arises it
+    # must go through the dependency-audit process and be scoped with
+    # skip-trees + a documented justification.
+    { name = "openssl" },
+]
+skip = []
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

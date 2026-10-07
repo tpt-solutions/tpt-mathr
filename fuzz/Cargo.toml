@@ -1,0 +1,50 @@
+[package]
+name = "tpt-mathr-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+# Separate workspace by cargo-fuzz convention: the fuzz targets link
+# libFuzzer (Apache-2.0 WITH LLVM-exception) and are never part of the
+# published crates or the root `cargo deny check` scope (see
+# docs/dependency-audit.md).
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.tpt-mathr-arith]
+path = "../crates/tpt-mathr-arith"
+features = ["testing"]
+
+# Prevent this crate from inheriting the root workspace.
+[workspace]
+
+[[bin]]
+name = "parse_radix"
+path = "fuzz_targets/parse_radix.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "arith_roundtrip"
+path = "fuzz_targets/arith_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bytes_roundtrip"
+path = "fuzz_targets/bytes_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rational_invariants"
+path = "fuzz_targets/rational_invariants.rs"
+test = false
+doc = false
+bench = false

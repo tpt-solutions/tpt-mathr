@@ -1,0 +1,26 @@
+[package]
+name = "tpt-mathr-cli"
+description = "Command-line interface to the tpt-mathr engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+[[bin]]
+name = "tpt-mathr-cli"
+path = "src/main.rs"
+
+[features]
+default = []
+# CLI always runs hosted; no no_std target.
+
+[dependencies]
+tpt-mathr-base = { workspace = true }
+tpt-mathr-arith = { workspace = true }
+tpt-mathr-poly = { workspace = true }
+tpt-mathr-search = { workspace = true }
+tpt-mathr-verify = { workspace = true }

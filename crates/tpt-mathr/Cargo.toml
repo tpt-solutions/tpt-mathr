@@ -1,0 +1,34 @@
+[package]
+name = "tpt-mathr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Thin facade over the tpt-mathr engine: arbitrary-precision, proof-aware numerical computation"
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = []
+# Feature-flagged re-exports; each pulls the corresponding engine crate.
+arith = ["dep:tpt-mathr-arith"]
+poly = ["dep:tpt-mathr-poly"]
+symbolic = ["dep:tpt-mathr-symbolic"]
+search = ["dep:tpt-mathr-search"]
+verify = ["dep:tpt-mathr-verify"]
+full = ["arith", "poly", "symbolic", "search", "verify"]
+std = ["tpt-mathr-arith?/std", "tpt-mathr-poly?/std", "tpt-mathr-symbolic?/std", "tpt-mathr-search?/std", "tpt-mathr-verify?/std"]
+
+[dependencies]
+tpt-mathr-base = { workspace = true }
+tpt-mathr-arith = { workspace = true, optional = true }
+tpt-mathr-poly = { workspace = true, optional = true }
+tpt-mathr-symbolic = { workspace = true, optional = true }
+tpt-mathr-search = { workspace = true, optional = true }
+tpt-mathr-verify = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true

@@ -1,0 +1,52 @@
+[package]
+name = "tpt-mathr-arith"
+description = "Native Rust arbitrary-precision arithmetic: BigUint, BigInt, modular arithmetic, number theory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = []
+std = ["tpt-mathr-base/std"]
+# Differential testing against Python `int` (dev-only; requires a Python 3
+# interpreter on PATH at test time). Never enabled by default and never
+# enabled by downstream features.
+differential-tests = []
+# Reference paths for integration-test differential checks (see
+# `test_support`). Test scaffolding: never default, never downstream.
+testing = []
+
+[dependencies]
+tpt-mathr-base = { workspace = true }
+
+[dev-dependencies]
+tpt-mathr-base = { workspace = true, features = ["testing"] }
+
+# Integration-test targets and their feature requirements: plain
+# `cargo test` runs the unit suite everywhere; the property suite needs the
+# reference paths, the Python corpus needs the interpreter harness.
+[[test]]
+name = "properties"
+required-features = ["testing"]
+
+[[test]]
+name = "differential_python"
+required-features = ["differential-tests"]
+
+[[test]]
+name = "differential_bigint"
+required-features = ["differential-tests", "testing"]
+
+[[test]]
+name = "differential_rational"
+required-features = ["differential-tests", "testing"]
+
+[[test]]
+name = "differential_phase3"
+required-features = ["differential-tests", "testing"]

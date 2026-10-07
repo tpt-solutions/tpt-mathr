@@ -1,0 +1,18 @@
+# tpt-mathr toolchain pin.
+#
+# MSRV policy (docs/architecture.md):
+#   * The documented MSRV is 1.85 — the first stable release supporting
+#     Edition 2024, which this workspace requires.
+#   * CI verifies the workspace builds with 1.85.0 (MSRV job) and with the
+#     pinned stable toolchain below.
+#   * Library code must not use features newer than the MSRV; if a newer
+#     feature becomes necessary, the MSRV bump must be recorded in
+#     CHANGELOG.md and this file kept in sync with CI.
+#
+# Nightly is used only for optional developer tooling (Miri, fuzzing);
+# it is never required to build the library.
+
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

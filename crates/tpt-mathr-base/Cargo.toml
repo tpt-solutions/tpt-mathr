@@ -1,0 +1,25 @@
+[package]
+name = "tpt-mathr-base"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shared infrastructure for tpt-mathr: errors, resource limits, cancellation, fallible allocation, FFI status codes"
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = []
+# Enables the cooperative wall-clock deadline source (std::time::Instant).
+# Everything else in this crate works with `alloc` alone.
+std = []
+# Deterministic test RNG for property/metamorphic tests. Test scaffolding:
+# never enabled by engine features, never part of the public API contract.
+testing = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

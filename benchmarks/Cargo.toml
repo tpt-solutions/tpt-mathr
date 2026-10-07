@@ -1,0 +1,25 @@
+[package]
+name = "tpt-mathr-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Benchmark harness for tpt-mathr (development tool, never published)"
+publish = false
+
+[[bin]]
+name = "tpt-mathr-bench"
+path = "src/main.rs"
+
+[features]
+default = []
+std = ["tpt-mathr-arith/std"]
+
+[dependencies]
+tpt-mathr-arith = { workspace = true, features = ["testing"] }
+
+# Criterion is deferred: see docs/dependency-audit.md. The harness below is
+# deliberately dependency-free and records the full benchmark metadata
+# contract (docs/benchmarks.md) itself.

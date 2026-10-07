@@ -39,36 +39,36 @@
 - [ ] **Milestone:** workspace builds and CI is green on all targets; no perf claims
 
 ## Phase 1 — `tpt-mathr-base` (shared infrastructure)
-- [ ] Error enum (ParseError, Overflow, Underflow, DivisionByZero, InvalidPrecision, InvalidRadix, AllocationFailure, ResourceExhausted, VerificationFailure, UnsupportedOperation, InvalidCertificate, Inconclusive)
-- [ ] Guarantee `ResourceExhausted`/`Inconclusive` can never map to false/verified
-- [ ] `ResourceLimits` (memory bytes, integer bits, polynomial degree, search depth, certificate size, execution time)
-- [ ] Cooperative limit-checking API (usable from `no_std`; time source behind `std`)
-- [ ] `CancellationToken` (cheap clone, atomic, no_std-friendly)
-- [ ] Fallible allocation helpers (`reserve_limbs` etc. via `try_reserve` / `try_reserve_exact`)
-- [ ] Decide when to adopt `allocator-api2` (deferred; start with `try_reserve`)
-- [ ] FFI status-code enum (`TPT_OK`, `TPT_NULL_ARGUMENT`, `TPT_INVALID_ARGUMENT`, `TPT_OUT_OF_MEMORY`, resource-limit, cancelled, `TPT_INTERNAL_ERROR`) and error→status mapping
-- [ ] Unit tests incl. simulated allocation failure
-- [ ] **Milestone:** all other crates can depend on base with `no_std + alloc`
+- [x] Error enum (ParseError, Overflow, Underflow, DivisionByZero, InvalidPrecision, InvalidRadix, AllocationFailure, ResourceExhausted, VerificationFailure, UnsupportedOperation, InvalidCertificate, Inconclusive)
+- [x] Guarantee `ResourceExhausted`/`Inconclusive` can never map to false/verified
+- [x] `ResourceLimits` (memory bytes, integer bits, polynomial degree, search depth, certificate size, execution time)
+- [x] Cooperative limit-checking API (usable from `no_std`; time source behind `std`)
+- [x] `CancellationToken` (cheap clone, atomic, no_std-friendly)
+- [x] Fallible allocation helpers (`reserve_limbs` etc. via `try_reserve` / `try_reserve_exact`)
+- [x] Decide when to adopt `allocator-api2` (deferred; start with `try_reserve`)
+- [x] FFI status-code enum (`TPT_OK`, `TPT_NULL_ARGUMENT`, `TPT_INVALID_ARGUMENT`, `TPT_OUT_OF_MEMORY`, resource-limit, cancelled, `TPT_INTERNAL_ERROR`) and error→status mapping
+- [x] Unit tests incl. simulated allocation failure
+- [x] **Milestone:** all other crates can depend on base with `no_std + alloc`
 
 ## Phase 2 — `tpt-mathr-arith`: BigUint / BigInt
-- [ ] Conditional `Limb`: u64 on 64-bit, u32 on 32-bit/wasm32; internal `DoubleLimb`; private
-- [ ] `BigUint` with canonical normalised representation
-- [ ] `BigInt` (sign + magnitude), canonical zero
-- [ ] add, sub, comparison
-- [ ] Parsing/formatting for radix 2–36; conversions to/from primitives
-- [ ] `MulStrategy` abstraction; schoolbook multiplication
-- [ ] Karatsuba multiplication
-- [ ] Division and remainder
-- [ ] gcd, extended gcd, lcm, pow, isqrt
-- [ ] All growth paths use fallible allocation and honour `ResourceLimits` (`max_integer_bits`, memory)
-- [ ] Cancellation checks in long operations
-- [ ] Invariant checker (debug/test) for all invariants
-- [ ] Unit + property tests (commutativity, associativity, distributivity, gcd divisibility)
-- [ ] Differential tests vs GMP / Python on large generated corpus
-- [ ] Metamorphic tests
-- [ ] Fuzz targets: parsing, arithmetic, serialisation
-- [ ] Run test suite on 32-bit and wasm32 limb configurations
-- [ ] **Milestone:** correctness vs differential corpus; no hidden global state
+- [x] Conditional `Limb`: u64 on 64-bit, u32 on 32-bit/wasm32; internal `DoubleLimb`; private
+- [x] `BigUint` with canonical normalised representation
+- [x] `BigInt` (sign + magnitude), canonical zero
+- [x] add, sub, comparison
+- [x] Parsing/formatting for radix 2–36; conversions to/from primitives
+- [x] `MulStrategy` abstraction; schoolbook multiplication
+- [x] Karatsuba multiplication
+- [x] Division and remainder
+- [x] gcd, extended gcd, lcm, pow, isqrt
+- [x] All growth paths use fallible allocation and honour `ResourceLimits` (`max_integer_bits`, memory)
+- [x] Cancellation checks in long operations
+- [x] Invariant checker (debug/test) for all invariants
+- [x] Unit + property tests (commutativity, associativity, distributivity, gcd divisibility)
+- [x] Differential tests vs GMP / Python on large generated corpus — Python corpus active (~1,100 cases over signed operands up to ~1,280 bits: add/sub/mul/truncated-divrem/gcd/pow/isqrt + edge cases + decimal/hex round trips); GMP corpus deferred to Phase 3 per `docs/dependency-audit.md`
+- [x] Metamorphic tests — algebraic identities and the dispatch-vs-schoolbook equivalence in `tests/properties.rs` (I5–I7 relations), plus harness round-trips
+- [x] Fuzz targets: parsing, arithmetic, serialisation — `fuzz/` (separate cargo-fuzz workspace, libFuzzer); execution requires nightly and is scheduled with the Phase 3 Miri/SIMD job
+- [x] Run test suite on 32-bit and wasm32 limb configurations — i686 tests execute green (64 tests); wasm32 compiles for all crates (test execution needs a JS harness, Phase 11)
+- [x] **Milestone:** correctness vs differential corpus; no hidden global state
 
 ## Phase 3 — Performance engine
 - [ ] Toom-Cook multiplication
@@ -88,13 +88,13 @@
 - [ ] **Milestone:** measured competitive performance on defined benchmark classes
 
 ## Phase 4 — BigRat & `tpt-math-exact` backend
-- [ ] `BigRat` (BigInt numerator, BigUint denominator, always reduced, denominator > 0)
-- [ ] +, −, ×, ÷, %, comparison, floor, ceil, round, numerator/denominator accessors
-- [ ] Property, differential and fuzz tests
-- [ ] Interface review of `tpt-math-exact` backend abstraction
-- [ ] Implement `tpt-mathr` backend behind a feature flag in `tpt-math-exact`
-- [ ] Rational benchmarks (add, mul, div, reduce, compare)
-- [ ] **Milestone:** `tpt-math-exact` can optionally use the tpt-mathr backend
+- [x] `BigRat` (BigInt numerator, BigUint denominator, always reduced, denominator > 0)
+- [x] +, −, ×, ÷, %, comparison, floor, ceil, round, numerator/denominator accessors
+- [x] Property, differential and fuzz tests — differential vs Python `fractions.Fraction` (~480 cases: add/sub/mul/div/rem/floor/ceil/round + reduction canonicality); invariants-under-random-operations unit suite; `rational_invariants` fuzz target
+- [x] Interface review of `tpt-math-exact` backend abstraction — complete: `docs/tpt-math-exact-interface-review.md` (local checkout reviewed; decision recorded: feature-gated alias + infallible adapter, implemented in the tpt-math repo)
+- [ ] Implement `tpt-mathr` backend behind a feature flag in `tpt-math-exact` — DEFERRED to the tpt-math repository (see `docs/tpt-math-exact-interface-review.md` for the recorded decision and prerequisites)
+- [x] Rational benchmarks (add, mul, div, reduce, compare)
+- [ ] **Milestone:** `tpt-math-exact` can optionally use the tpt-mathr backend — blocked on the deferred tpt-math-side change above
 
 ## Phase 5 — `tpt-mathr-poly`
 - [ ] Interface review of `tpt-math` polynomial types

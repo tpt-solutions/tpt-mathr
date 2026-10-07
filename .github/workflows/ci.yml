@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: Clippy (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: Test (${{ matrix.os }}, ${{ matrix.features }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        features: ["", "--all-features"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace ${{ matrix.features }} --no-fail-fast
+
+  msrv:
+    # MSRV policy: 1.85, the first stable release with Edition 2024.
+    name: MSRV 1.85 build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-features
+      - run: cargo test --workspace
+
+  deny:
+    name: cargo-deny (licenses / advisories / bans)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny check
+
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --no-deps --all-features
+
+  targets:
+    # Spec §4 / todo Phase 0: x86_64, aarch64, a 32-bit target, wasm32.
+    # Compiled for every target; unit tests run where an emulator/host ABI
+    # exists on the runner.
+    name: Target ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            run-tests: true
+          - target: aarch64-unknown-linux-gnu
+            run-tests: false # cross-checked; run under QEMU before release
+          - target: i686-unknown-linux-gnu
+            run-tests: true # runner multilib executes 32-bit tests
+          - target: wasm32-unknown-unknown
+            run-tests: false # no_std check; browser/node harness lands Phase 11
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-features --target ${{ matrix.target }}
+      - if: matrix.run-tests
+        run: cargo test --workspace --target ${{ matrix.target }}
+
+  miri:
+    # todo Phase 0: Miri job for the unsafe kernel module. The kernel module
+    # does not exist yet (safe baseline); this job runs the workspace under
+    # Miri so the harness is proven before the first unsafe line lands.
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly miri test -p tpt-mathr-base -p tpt-mathr-arith --all-features

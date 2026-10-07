@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/tpt-mathr-base",
+    "crates/tpt-mathr-arith",
+    "crates/tpt-mathr-poly",
+    "crates/tpt-mathr-symbolic",
+    "crates/tpt-mathr-search",
+    "crates/tpt-mathr-verify",
+    "crates/tpt-mathr-ffi",
+    "crates/tpt-mathr-cli",
+    "crates/tpt-mathr",
+    "benchmarks",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+repository = "https://github.com/TPT-Solutions/tpt-mathr"
+homepage = "https://github.com/TPT-Solutions/tpt-mathr"
+description = "High-performance, arbitrary-precision, proof-aware numerical engine for the TPT ecosystem"
+keywords = ["arbitrary-precision", "bignum", "mathematics", "cryptography", "symbolic"]
+categories = ["mathematics", "algorithms", "no-std"]
+
+[workspace.dependencies]
+tpt-mathr-base = { version = "0.1.0", path = "crates/tpt-mathr-base" }
+tpt-mathr-arith = { version = "0.1.0", path = "crates/tpt-mathr-arith" }
+tpt-mathr-poly = { version = "0.1.0", path = "crates/tpt-mathr-poly" }
+tpt-mathr-symbolic = { version = "0.1.0", path = "crates/tpt-mathr-symbolic" }
+tpt-mathr-search = { version = "0.1.0", path = "crates/tpt-mathr-search" }
+tpt-mathr-verify = { version = "0.1.0", path = "crates/tpt-mathr-verify" }
+tpt-mathr-ffi = { version = "0.1.0", path = "crates/tpt-mathr-ffi" }
+
+# The mathematical core is intentionally dependency-light (spec §44):
+# no runtime external dependencies. Dev-dependencies are added per-crate
+# only after the license audit in docs/dependency-audit.md clears them.
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+debug = true
